@@ -3,7 +3,7 @@
  * Plugin Name: Dynamic Product Order Form for WooCommerce
  * Plugin URI:  https://farsimeeting.com
  * Description: Dynamic order form with price calculation for printed products – customizable for each product individually.
- * Version:     3.6.6
+ * Version:     3.6.7
  * Author:      Mervis
  * Author URI:  https://farsimeeting.com
  * Text Domain: wc-dynamic-form
