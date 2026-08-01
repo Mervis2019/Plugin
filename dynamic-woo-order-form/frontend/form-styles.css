@@ -476,3 +476,34 @@
         flex: 0 1 auto;
     }
 }
+
+/* نمایش افقی گزینه‌های رادیویی و چک‌باکس */
+.mervis-horizontal-options {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 15px !important;
+}
+
+.mervis-horizontal-options .mervis-option-label {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    transition: all 0.2s;
+}
+
+.mervis-horizontal-options .mervis-option-label:hover {
+    border-color: #3c224b;
+    background: #f0f8ff;
+}
+
+.mervis-horizontal-options input[type="radio"]:checked + span,
+.mervis-horizontal-options input[type="checkbox"]:checked + span {
+    color: #3c224b;
+    font-weight: bold;
+}

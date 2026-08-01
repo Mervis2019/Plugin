@@ -3,7 +3,7 @@
  * Plugin Name: Dynamic Product Order Form for WooCommerce
  * Plugin URI:  https://farsimeeting.com
  * Description: Dynamic order form with price calculation for printed products – customizable for each product individually.
- * Version:     3.5.1
+ * Version:     3.6.6
  * Author:      Mervis
  * Author URI:  https://farsimeeting.com
  * Text Domain: wc-dynamic-form
@@ -224,4 +224,21 @@ function mervis_debug_info_for_admin() {
     }
     echo '</div>';
 }
+
+add_action('wp_ajax_mervis_get_cities', 'mervis_get_cities_callback');
+add_action('wp_ajax_nopriv_mervis_get_cities', 'mervis_get_cities_callback');
+
+function mervis_get_cities_callback() {
+    $province_id = intval($_POST['province_id']);
+    
+    // اینجا می‌توانید از دیتابیس یا یک آرایه بزرگتر استفاده کنید. این یک نمونه ساختاری است:
+    $cities_data = array(
+        1 => array(array('id' => 11, 'name' => 'تهران'), array('id' => 12, 'name' => 'کرج')),
+        2 => array(array('id' => 21, 'name' => 'اصفهان'), array('id' => 22, 'name' => 'کاشان'))
+    );
+    
+    $cities = isset($cities_data[$province_id]) ? $cities_data[$province_id] : array();
+    wp_send_json_success($cities);
+}
+
 ?>

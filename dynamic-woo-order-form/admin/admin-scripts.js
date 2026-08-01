@@ -11,7 +11,13 @@ jQuery(document).ready(function($) {
     // ============================================
     // مدیریت افزودن فیلد جدید
     // ============================================
-    $(document).on('click', '#add-new-field', function() {
+    $(document).off('click', '#add-new-field').on('click', '#add-new-field', function(e) {
+        e.preventDefault(); // جلوگیری از رفتار پیش‌فرض (مثل رفرش صفحه یا پرش)
+        
+        // جلوگیری از کلیک‌های سریع و پشت سر هم (Double Click)
+        if ($(this).hasClass('is-loading')) return;
+        $(this).addClass('is-loading');
+    
         var index = $('#form-fields-container .field-row').length;
         $.ajax({
             url: ajaxurl,
@@ -22,10 +28,12 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 $('#form-fields-container').append(response);
-                // تنظیم مجدد رویدادها برای فیلد جدید (اختیاری)
             },
             error: function(xhr, status, error) {
                 console.error('خطا در افزودن فیلد:', error);
+            },
+            complete: function() {
+                $('#add-new-field').removeClass('is-loading');
             }
         });
     });

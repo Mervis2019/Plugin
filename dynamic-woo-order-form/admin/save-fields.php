@@ -26,111 +26,81 @@ function mervis_save_form_data() {
             $field_label = sanitize_text_field($field['label']);
             $field_key = !empty($field['key']) ? sanitize_key($field['key']) : sanitize_title($field_label);
             
-            $options = array();
-            $option_prices = array();
-            $option_keys = array();
-            $subfields = array();
-            
-if (in_array($field_type, ['radio', 'select', 'select_custom', 'checkbox'])) {
-    if (isset($field['options']) && is_array($field['options'])) {
-        $options = array_map('sanitize_text_field', $field['options']);
-        $options = array_filter($options);
-    }
-    if (isset($field['option_prices']) && is_array($field['option_prices'])) {
-        $option_prices = array_map('floatval', $field['option_prices']);
-    }
-    foreach ($options as $opt) {
-        $option_keys[] = sanitize_title($opt);
-    }
-}
-
-// در بخش پردازش فیلدها، بعد از subfields
-if ($field_type == 'dynamic_group' && isset($field['dynamic_configs']) && is_array($field['dynamic_configs'])) {
-    $dynamic_configs = array();
-    foreach ($field['dynamic_configs'] as $config) {
-        $subfields = array();
-        if (isset($config['subfields']) && is_array($config['subfields'])) {
-            foreach ($config['subfields'] as $sub) {
-                $subfields[] = array(
-                    'label' => sanitize_text_field($sub['label'] ?? ''),
-                    'key' => !empty($sub['key']) ? sanitize_key($sub['key']) : sanitize_title($sub['label']),
-                    'type' => sanitize_text_field($sub['type'] ?? 'number')
-                );
-            }
-        }
-        $dynamic_configs[] = array(
-            'option_label' => sanitize_text_field($config['option_label'] ?? ''),
-            'subfields' => $subfields
-        );
-    }
-    
-    $fields[] = array(
-        'type' => $field_type,
-        'label' => $field_label,
-        'key' => $field_key,
-        'dynamic_configs' => $dynamic_configs,
-        'options' => array_column($dynamic_configs, 'option_label'),
-        'option_keys' => array_map('sanitize_title', array_column($dynamic_configs, 'option_label')),
-        'conditional_field' => sanitize_text_field($field['conditional_field'] ?? ''),
-        'conditional_value' => sanitize_text_field($field['conditional_value'] ?? ''),
-    );
-    continue;
-}
-            
-// در تابع mervis_save_form_data - بخش پردازش فیلدها
-if ($field_type == 'group' && isset($field['subfields']) && is_array($field['subfields'])) {
-    $subfields = array();
-    foreach ($field['subfields'] as $sub) {
-        // پردازش گزینه‌ها برای زیرفیلد نوع select
-        $sub_options = array();
-        $sub_option_prices = array();
-        if (isset($sub['options']) && is_array($sub['options'])) {
-            $sub_options = array_map('sanitize_text_field', $sub['options']);
-            $sub_options = array_filter($sub_options);
-        }
-        if (isset($sub['option_prices']) && is_array($sub['option_prices'])) {
-            $sub_option_prices = array_map('floatval', $sub['option_prices']);
-        }
-        
-        $subfields[] = array(
-            'label' => sanitize_text_field($sub['label'] ?? ''),
-            'key' => !empty($sub['key']) ? sanitize_key($sub['key']) : sanitize_title($sub['label']),
-            'type' => sanitize_text_field($sub['type'] ?? 'number'),
-            'min_value' => isset($sub['min_value']) && $sub['min_value'] !== '' ? floatval($sub['min_value']) : null,
-            'max_value' => isset($sub['max_value']) && $sub['max_value'] !== '' ? floatval($sub['max_value']) : null,
-            'options' => array_values($sub_options),
-            'option_prices' => array_values($sub_option_prices)
-        );
-    }
-    
-    // فیلد گروهی با زیرفیلدها ذخیره می‌شود
-    $fields[] = array(
-        'type' => $field_type,
-        'label' => $field_label,
-        'key' => $field_key,
-        'subfields' => $subfields,
-        // بقیه فیلدها برای گروهی استفاده نمی‌شوند
-        'options' => array(),
-        'option_prices' => array(),
-        'price_factor' => 1,
-        'min_value' => null,
-        'max_value' => null
-    );
-    continue; // مهم: ادامه حلقه برای جلوگیری از ذخیره دوباره
-}
-            
-            $fields[] = array(
+            // ✅ آرایه پایه برای همه فیلدها (شامل فیلدهای شرطی و نمایش افقی)
+            $new_field = array(
                 'type' => $field_type,
                 'label' => $field_label,
                 'key' => $field_key,
-                'options' => array_values($options),
-                'option_keys' => array_values($option_keys),
-                'option_prices' => array_values($option_prices),
                 'price_factor' => isset($field['price_factor']) ? floatval($field['price_factor']) : 1,
-                'min_value' => isset($field['min_value']) && $field['min_value'] !== '' ? floatval($field['min_value']) : null,
-                'max_value' => isset($field['max_value']) && $field['max_value'] !== '' ? floatval($field['max_value']) : null,
-                'subfields' => $subfields
+                'min_value' => (isset($field['min_value']) && $field['min_value'] !== '') ? floatval($field['min_value']) : null,
+                'max_value' => (isset($field['max_value']) && $field['max_value'] !== '') ? floatval($field['max_value']) : null,
+                'required' => isset($field['required']) ? 1 : 0,
+                // ✅ کلیدهای جدید که باعث حل مشکل ذخیره‌نشدن می‌شوند:
+                'conditional_parent' => sanitize_text_field($field['conditional_parent'] ?? ''),
+                'conditional_value' => sanitize_text_field($field['conditional_value'] ?? ''),
+                'display_horizontal' => isset($field['display_horizontal']) ? 1 : 0,
+                
+                'options' => array(),
+                'option_prices' => array(),
+                'subfields' => array(),
+                'dynamic_configs' => array()
             );
+
+            // 1. پردازش گزینه‌ها (برای رادیو، چک‌باکس، انتخابگر)
+            if (in_array($field_type, ['radio', 'select', 'select_custom', 'checkbox'])) {
+                if (isset($field['options']) && is_array($field['options'])) {
+                    $new_field['options'] = array_values(array_filter(array_map('sanitize_text_field', $field['options'])));
+                }
+                if (isset($field['option_prices']) && is_array($field['option_prices'])) {
+                    $new_field['option_prices'] = array_values(array_map('floatval', $field['option_prices']));
+                }
+            }
+
+            // 2. پردازش زیرفیلدهای گروهی ثابت
+            if ($field_type === 'group' && isset($field['subfields']) && is_array($field['subfields'])) {
+                foreach ($field['subfields'] as $sub) {
+                    $sub_options = isset($sub['options']) ? array_values(array_filter(array_map('sanitize_text_field', $sub['options']))) : array();
+                    $sub_option_prices = isset($sub['option_prices']) ? array_values(array_map('floatval', $sub['option_prices'])) : array();
+                    
+                    $new_field['subfields'][] = array(
+                        'label' => sanitize_text_field($sub['label'] ?? ''),
+                        'key' => !empty($sub['key']) ? sanitize_key($sub['key']) : sanitize_title($sub['label']),
+                        'type' => sanitize_text_field($sub['type'] ?? 'number'),
+                        'min_value' => (isset($sub['min_value']) && $sub['min_value'] !== '') ? floatval($sub['min_value']) : null,
+                        'max_value' => (isset($sub['max_value']) && $sub['max_value'] !== '') ? floatval($sub['max_value']) : null,
+                        'options' => $sub_options,
+                        'option_prices' => $sub_option_prices
+                    );
+                }
+            }
+
+            // 3. پردازش تنظیمات گروه پویا
+            if ($field_type === 'dynamic_group' && isset($field['dynamic_configs']) && is_array($field['dynamic_configs'])) {
+                foreach ($field['dynamic_configs'] as $config) {
+                    $config_subfields = array();
+                    if (isset($config['subfields']) && is_array($config['subfields'])) {
+                        foreach ($config['subfields'] as $sub) {
+                            $config_subfields[] = array(
+                                'label' => sanitize_text_field($sub['label'] ?? ''),
+                                'key' => !empty($sub['key']) ? sanitize_key($sub['key']) : sanitize_title($sub['label']),
+                                'type' => sanitize_text_field($sub['type'] ?? 'number'),
+                                // ✅ اضافه شدن ذخیره min و max برای زیرفیلدهای پویا
+                                'min_value' => (isset($sub['min_value']) && $sub['min_value'] !== '') ? floatval($sub['min_value']) : null,
+                                'max_value' => (isset($sub['max_value']) && $sub['max_value'] !== '') ? floatval($sub['max_value']) : null
+                            );
+                        }
+                    }
+                    $new_field['dynamic_configs'][] = array(
+                        'option_label' => sanitize_text_field($config['option_label'] ?? ''),
+                        'subfields' => $config_subfields
+                    );
+                }
+                // پر کردن آرایه options برای سازگاری با فرانت‌اند
+                $new_field['options'] = array_column($new_field['dynamic_configs'], 'option_label');
+            }
+            
+            // افزودن فیلد پردازش‌شده به آرایه نهایی
+            $fields[] = $new_field;
         }
     }
     
@@ -184,7 +154,7 @@ function mervis_register_post_types() {
         'public' => true,
         'publicly_queryable' => false,
         'show_ui' => true,
-        'show_in_menu' => 'mervis-dynamic-forms',
+        'show_in_menu' => 'mervis-dynamic-forms', // مطمئن شوید این منو وجود دارد
         'supports' => array('title', 'editor'),
         'capability_type' => 'post',
         'capabilities' => array(
@@ -211,20 +181,25 @@ function mervis_request_details_callback($post) {
     $calculated_price = get_post_meta($post->ID, '_request_calculated_price', true);
     $user_ip = get_post_meta($post->ID, '_request_user_ip', true);
     ?>
-    <style>.mervis-details-table{width:100%;border-collapse:collapse}.mervis-details-table th,.mervis-details-table td{padding:12px;text-align:right;border-bottom:1px solid #eee;vertical-align:top}.mervis-details-table th{width:200px;background:#f9f9f9;font-weight:bold}.mervis-price-box{background:#e8f5e9;padding:15px;margin-top:20px;border-radius:8px;font-size:18px;font-weight:bold;text-align:center}</style>
+    <style>
+        .mervis-details-table{width:100%;border-collapse:collapse}
+        .mervis-details-table th,.mervis-details-table td{padding:12px;text-align:right;border-bottom:1px solid #eee;vertical-align:top}
+        .mervis-details-table th{width:200px;background:#f9f9f9;font-weight:bold}
+        .mervis-price-box{background:#e8f5e9;padding:15px;margin-top:20px;border-radius:8px;font-size:18px;font-weight:bold;text-align:center}
+    </style>
     <table class="mervis-details-table">
-        <tr><th>شناسه درخواست</th><td><?php echo $post->ID; ?></td></tr>
-        <tr><th>تاریخ ثبت</th><td><?php echo get_post_meta($post->ID, '_request_date', true) ?: $post->post_date; ?></td></tr>
+        <tr><th>شناسه درخواست</th><td><?php echo esc_html($post->ID); ?></td></tr>
+        <tr><th>تاریخ ثبت</th><td><?php echo esc_html(get_post_meta($post->ID, '_request_date', true) ?: $post->post_date); ?></td></tr>
         <tr><th>آی پی کاربر</th><td><?php echo esc_html($user_ip ?: 'نامشخص'); ?></td></tr>
-        <tr><th>محصول</th><td><?php $p = wc_get_product($product_id); echo $p ? '<a href="' . get_permalink($product_id) . '" target="_blank">' . $p->get_name() . '</a>' : 'محصول حذف شده'; ?></td></tr>
+        <tr><th>محصول</th><td><?php $p = wc_get_product($product_id); echo $p ? '<a href="' . get_permalink($product_id) . '" target="_blank">' . esc_html($p->get_name()) . '</a>' : 'محصول حذف شده'; ?></td></tr>
         <?php if (!empty($form_data) && is_array($form_data)): ?>
             <tr><th colspan="2" style="background:#f0f0f0;">📋 اطلاعات فرم سفارش</th></tr>
             <?php 
             $label_map = array('name'=>'نام و نام خانوادگی', 'phone'=>'شماره تماس', 'mobile'=>'شماره موبایل', 'customer_name'=>'نام مشتری', 'customer_phone'=>'شماره تماس', 'email'=>'ایمیل', 'address'=>'آدرس', 'city'=>'شهر', 'state'=>'استان', 'zip'=>'کد پستی');
             foreach ($form_data as $key => $value):
-                if (in_array($key, ['product_id', 'form_id', 'calculated_price', 'add-to-cart', 'mervis_form_nonce', 'action', 'nonce'])) continue;
+                if (in_array($key, ['product_id', 'form_id', 'calculated_price', 'add-to-cart', 'mervis_form_nonce', 'action', 'nonce', 'wp_http_referer'])) continue;
                 $display_key = $label_map[$key] ?? ucwords(str_replace(['_', '-'], ' ', $key));
-                if (is_array($value)) $value = json_encode($value);
+                if (is_array($value)) $value = json_encode($value, JSON_UNESCAPED_UNICODE);
             ?>
                 <tr><th><?php echo esc_html($display_key); ?></th><td><?php echo nl2br(esc_html($value)); ?></td></tr>
             <?php endforeach; ?>
@@ -235,7 +210,7 @@ function mervis_request_details_callback($post) {
 }
 
 // ============================================
-// ستون‌های سفارشی - اصلاح شده
+// ستون‌های سفارشی
 // ============================================
 add_filter('manage_mervis_order_request_posts_columns', 'mervis_custom_request_columns');
 function mervis_custom_request_columns($columns) {
@@ -265,7 +240,6 @@ function mervis_custom_request_column_content($column, $post_id) {
         case 'customer_name':
             $name = '';
             if (is_array($data)) {
-                // لیست کلیدهای احتمالی برای نام
                 $name_keys = ['name', 'customer_name', 'full_name', 'نام', 'نام_کاربر', 'نام_و_نام_خانوادگی'];
                 foreach ($name_keys as $key) {
                     if (!empty($data[$key])) {
@@ -273,7 +247,6 @@ function mervis_custom_request_column_content($column, $post_id) {
                         break;
                     }
                 }
-                // اگر پیدا نشد، اولین مقدار متنی غیر از کلیدهای سیستمی را بگیر
                 if (empty($name)) {
                     $exclude_keys = ['product_id', 'form_id', 'calculated_price', 'wp_http_referer', 'action', 'nonce', 'add-to-cart'];
                     foreach ($data as $key => $value) {
@@ -291,7 +264,6 @@ function mervis_custom_request_column_content($column, $post_id) {
         case 'customer_phone':
             $phone = '';
             if (is_array($data)) {
-                // لیست کلیدهای احتمالی برای شماره تماس
                 $phone_keys = ['phone', 'mobile', 'customer_phone', 'شماره', 'تلفن', 'شماره_تماس', 'موبایل'];
                 foreach ($phone_keys as $key) {
                     if (!empty($data[$key])) {
@@ -299,7 +271,6 @@ function mervis_custom_request_column_content($column, $post_id) {
                         break;
                     }
                 }
-                // اگر پیدا نشد، اولین مقدار عددی با طول مناسب را بگیر
                 if (empty($phone)) {
                     $exclude_keys = ['product_id', 'form_id', 'calculated_price','fullname', 'full_name', 'full-namme', 'wp_http_referer', 'action', 'nonce'];
                     foreach ($data as $key => $value) {
