@@ -64,15 +64,38 @@ function mervis_display_order_form_tab_content() {
             display: none !important;
             visibility: hidden !important;
             height: 0 !important;
-            overflow: hidden !important;
+            width: 0 !important;
+            min-height: 0 !important;
+            min-width: 0 !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: hidden !important;
+            position: absolute !important;
+            left: -9999px !important;
+            top: -9999px !important;
+            z-index: -9999 !important;
+            opacity: 0 !important;
+            pointer-events: none !important; /* جلوگیری از هرگونه کلیک یا فوکوس */
         }
+
+        /* وقتی شرط برقرار شد، آن را به حالت عادی برگردان */
         .mervis-conditional-field.mervis-visible {
             display: block !important;
             visibility: visible !important;
             height: auto !important;
-            overflow: visible !important;
+            width: 100% !important;
+            position: static !important;
+            left: auto !important;
+            top: auto !important;
+            z-index: auto !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+
+        /* اطمینان از اینکه فرم‌فول‌ویدث هم درست کار می‌کند */
+        .mervis-conditional-field.form-full-width.mervis-visible {
+            display: block !important;
+            grid-column: span 4 !important;
         }
     </style>
     
@@ -105,18 +128,25 @@ function mervis_display_order_form_tab_content() {
                             
                             <?php if ($type == 'text'): ?>
                                 <label><?php echo esc_html($label); ?></label>
-                                <input type="text" name="<?php echo esc_attr($key); ?>" data-price-factor="<?php echo esc_attr($field['price_factor'] ?? 1); ?>" placeholder="مقدار را وارد کنید...">
+                                <input type="text" 
+                                    name="<?php echo esc_attr($key); ?>" 
+                                    <?php echo !empty($field['required']) ? 'required' : ''; /* اگر می‌خواهید همیشه اجباری باشد، این را به 'required' تغییر دهید */ ?>
+                                    data-price-factor="<?php echo esc_attr($field['price_factor'] ?? 1); ?>" 
+                                    placeholder="مقدار را وارد کنید...">
                                 
                             <?php elseif ($type == 'number'): ?>
                                 <label><?php echo esc_html($label); ?></label>
-                                <input type="number" name="<?php echo esc_attr($key); ?>" data-price-factor="<?php echo esc_attr($field['price_factor'] ?? 1); ?>" 
+                                <input type="number" 
+                                    name="<?php echo esc_attr($key); ?>" 
+                                    <?php echo !empty($field['required']) ? 'required' : ''; ?>
+                                    data-price-factor="<?php echo esc_attr($field['price_factor'] ?? 1); ?>" 
                                     <?php if (!empty($field['min_value'])): ?>min="<?php echo esc_attr($field['min_value']); ?>" data-min="<?php echo esc_attr($field['min_value']); ?>"<?php endif; ?> 
                                     <?php if (!empty($field['max_value'])): ?>max="<?php echo esc_attr($field['max_value']); ?>" data-max="<?php echo esc_attr($field['max_value']); ?>"<?php endif; ?> 
                                     placeholder="عدد را وارد کنید...">
                                 
                             <?php elseif ($type == 'phone'): ?>
                                 <label><?php echo esc_html($label); ?></label>
-                                <input type="tel" name="<?php echo esc_attr($key); ?>" class="mervis-phone-input" placeholder="مثال: 09123456789" pattern="[0-9]{10,11}" maxlength="11">
+                                <input type="tel" name="<?php echo esc_attr($key); ?>" class="mervis-phone-input" placeholder="مثال: 09123456789" pattern="[0-9]{10,11}" maxlength="11" <?php echo !empty($field['required']) ? 'required' : ''; ?>>
                                 
                             <?php elseif ($type == 'group'): ?>
                                 <label class="mervis-group-label"><?php echo esc_html($label); ?></label>
@@ -292,30 +322,95 @@ function mervis_display_order_form_tab_content() {
         };
         
         window.mervis_validate_form = function() {
-            var errors = [];
-            $('.mervis-form-modern input, .mervis-form-modern select, .mervis-form-modern textarea').each(function() {
-                var $el = $(this);
-                if ($el.is(':hidden') || $el.is(':disabled')) return;
-                if ($el.closest('.mervis-conditional-field').length && !$el.closest('.mervis-conditional-field').hasClass('mervis-visible')) return;
+    var errors = [];
+    
+    $('.mervis-form-modern input, .mervis-form-modern select, .mervis-form-modern textarea').each(function() {
+        var $el = $(this);
+        
+        // 1. نادیده گرفتن فیلدهای مخفی شرطی و غیرفعال
+        if ($el.is(':hidden') || $el.is(':disabled')) return;
+        if ($el.closest('.mervis-conditional-field').length && !$el.closest('.mervis-conditional-field').hasClass('mervis-visible')) return;
+        
+        var rawVal = $el.val();
+        var isEmpty = !rawVal || String(rawVal).trim() === '';
+        
+        // 2. بررسی اینکه آیا فیلد اجباری است یا خیر
+        var isRequired = $el.prop('required') || $el.hasClass('mervis-required');
+        var name = $el.attr('name');
+        var label = $el.closest('.form-row-modern, .form-full-width, .mervis-group-item').find('label').first().text().trim() || name || 'یک فیلد';
+
+        // 3. منطق بررسی خالی بودن
+        if (isEmpty) {
+            if (isRequired) {
+                errors.push('فیلد «' + label + '» الزامی است و باید پر شود.');
+                $el.css({'border-color': '#ef4444', 'background': '#fef2f2'}); // ✅ قرمز شدن فیلد
+            } else {
+                $el.css({'border-color': '#e2e8f0', 'background': 'white'}); // حالت عادی برای فیلد اختیاری خالی
+            }
+            return; // اگر خالی است، دیگر Min/Max را چک نکن
+        }
+
+        // اگر فیلد پر شده است، رنگ آن را به حالت عادی برگردان
+        $el.css({'border-color': '#e2e8f0', 'background': 'white'});
+
+        // 4. بررسی Min/Max (فقط اگر فیلد پر شده باشد)
+        var val = parsePersianFloat(rawVal);
+        if ($el.attr('type') === 'number' || $el.data('min') !== undefined || $el.data('max') !== undefined) {
+            var min = parseFloat($el.data('min'));
+            var max = parseFloat($el.data('max'));
+            
+            if (!isNaN(val)) {
+                if (!isNaN(min) && val < min) {
+                    errors.push('مقدار «' + label + '» نباید کمتر از ' + min + ' باشد.');
+                    $el.css({'border-color': '#ef4444', 'background': '#fef2f2'});
+                }
+                if (!isNaN(max) && val > max) {
+                    errors.push('مقدار «' + label + '» نباید بیشتر از ' + max + ' باشد.');
+                    $el.css({'border-color': '#ef4444', 'background': '#fef2f2'});
+                }
+            }
+        }
+    });
+
+    // 5. بررسی انتخابگر سفارشی (اگر اجباری باشد)
+    $('.mervis-select-custom').each(function() {
+        if ($(this).val() === 'custom') {
+            var $customInput = $(this).next('.mervis-custom-input').find('input');
+            var isRequired = $(this).prop('required') || $(this).hasClass('mervis-required');
+            
+            if ($customInput.length && !$customInput.is(':hidden')) {
+                var rawCustomVal = $customInput.val();
+                var isEmpty = !rawCustomVal || String(rawCustomVal).trim() === '';
                 
-                var rawVal = $el.val();
-                if (!rawVal || String(rawVal).trim() === '') return;
+                if (isEmpty && isRequired) {
+                    var label = $(this).closest('.form-row-modern').find('label').first().text().trim() || 'فیلد سفارشی';
+                    errors.push('فیلد «' + label + '» الزامی است.');
+                    $customInput.css({'border-color': '#ef4444', 'background': '#fef2f2'});
+                    return;
+                }
                 
-                var name = $el.attr('name');
-                var label = $el.closest('.form-row-modern, .form-full-width, .mervis-group-item').find('label').first().text().trim() || name;
-                var val = parsePersianFloat(rawVal);
-                
-                if ($el.attr('type') === 'number' || $el.data('min') !== undefined || $el.data('max') !== undefined) {
-                    var min = parseFloat($el.data('min'));
-                    var max = parseFloat($el.data('max'));
-                    if (!isNaN(val)) {
-                        if (!isNaN(min) && val < min) errors.push('مقدار «' + label + '» نباید کمتر از ' + min + ' باشد.');
-                        if (!isNaN(max) && val > max) errors.push('مقدار «' + label + '» نباید بیشتر از ' + max + ' باشد.');
+                if (!isEmpty) {
+                    $customInput.css({'border-color': '#e2e8f0', 'background': 'white'});
+                    var customVal = parsePersianFloat(rawCustomVal);
+                    var label = $(this).closest('.form-row-modern').find('label').first().text().trim() || 'فیلد سفارشی';
+                    var maxOption = -Infinity;
+                    
+                    $(this).find('option').each(function() {
+                        var optVal = parsePersianFloat($(this).val());
+                        if (!isNaN(optVal) && optVal > maxOption) maxOption = optVal;
+                    });
+                    
+                    if (maxOption !== -Infinity && customVal < maxOption) {
+                        errors.push('مقدار «' + label + '» باید حداقل ' + maxOption + ' باشد.');
+                        $customInput.css({'border-color': '#ef4444', 'background': '#fef2f2'});
                     }
                 }
-            });
-            return errors;
-        };
+            }
+        }
+    });
+    
+    return errors;
+};
         
         function calculatePrice() {
             var total = parseFloat(window.mervis_product_price) || 0;

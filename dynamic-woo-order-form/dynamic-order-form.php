@@ -3,7 +3,7 @@
  * Plugin Name: Dynamic Product Order Form for WooCommerce
  * Plugin URI:  https://farsimeeting.com
  * Description: Dynamic order form with price calculation for printed products – customizable for each product individually.
- * Version:     3.6.7
+ * Version:     3.6.8
  * Author:      Mervis
  * Author URI:  https://farsimeeting.com
  * Text Domain: wc-dynamic-form
@@ -107,7 +107,7 @@ function mervis_download_template_tab_content_wrapped() {
 
 function mervis_display_order_form_tab_content_wrapped() {
     // اطمینان از بارگذاری فایل price-calculator.js
-    wp_enqueue_script('mervis-price-calculator', MERVIS_FORM_URL . 'frontend/price-calculator.js', array('jquery'), '1.0', true);
+    // wp_enqueue_script('mervis-price-calculator', MERVIS_FORM_URL . 'frontend/price-calculator.js', array('jquery'), '1.0', true);
     echo '<div class="mervis-tab-wrapper">';
     mervis_display_order_form_tab_content();
     echo '</div>';
